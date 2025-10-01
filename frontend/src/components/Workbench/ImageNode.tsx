@@ -12,9 +12,10 @@ interface ImageNodeProps {
 }
 
 const ImageNode: React.FC<ImageNodeProps> = ({ image }) => {
-  const { 
-    selectImage, 
-    updateImagePosition, 
+  const {
+    selectImage,
+    selectImages,
+    updateImagePosition,
     updateMultipleImagePositions,
     updateImageSize,
     updateMultipleImageSizes,
@@ -25,6 +26,7 @@ const ImageNode: React.FC<ImageNodeProps> = ({ image }) => {
     spacePressed,
     images,
     selectedImageIds,
+    lastSelectedImageId,
     startCropping,
     updateCropArea,
     applyCrop,
@@ -96,34 +98,55 @@ const ImageNode: React.FC<ImageNodeProps> = ({ image }) => {
     openPromptViewer(image.id);
   };
 
+  // Helper function to get range of images based on z-index order
+  const getRangeSelection = (fromId: string, toId: string): string[] => {
+    // Sort images by z-index to get the order
+    const sortedImages = [...images].sort((a, b) => a.zIndex - b.zIndex);
+    const fromIndex = sortedImages.findIndex(img => img.id === fromId);
+    const toIndex = sortedImages.findIndex(img => img.id === toId);
+
+    if (fromIndex === -1 || toIndex === -1) return [toId];
+
+    const startIndex = Math.min(fromIndex, toIndex);
+    const endIndex = Math.max(fromIndex, toIndex);
+
+    return sortedImages.slice(startIndex, endIndex + 1).map(img => img.id);
+  };
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (activeTool === 'hand' || spacePressed) return;
     if (activeTool !== 'select') return;
     if (image.isCropping) return; // Don't allow dragging while cropping
-    
+
     e.preventDefault();
     e.stopPropagation();
-    
+
     const isMultiSelect = e.ctrlKey || e.metaKey;
-    
+    const isRangeSelect = e.shiftKey;
+
     // Determine which images should be selected after this click
     let imagesToMove: string[] = [];
-    
-    if (!image.selected) {
+
+    if (isRangeSelect && lastSelectedImageId) {
+      // Shift+Click: Select range from last selected to current
+      const rangeIds = getRangeSelection(lastSelectedImageId, image.id);
+      selectImages(rangeIds);
+      imagesToMove = rangeIds;
+    } else if (!image.selected) {
       // If clicking on an unselected image
       if (isMultiSelect) {
-        // Add to selection
+        // Cmd/Ctrl+Click: Add to selection
         selectImage(image.id, true);
         imagesToMove = [...selectedImageIds, image.id];
       } else {
-        // Replace selection with just this image
+        // Regular click: Replace selection with just this image
         selectImage(image.id, false);
         imagesToMove = [image.id];
       }
     } else {
       // Clicking on an already selected image - move all selected images
-      imagesToMove = selectedImageIds.includes(image.id) 
-        ? selectedImageIds 
+      imagesToMove = selectedImageIds.includes(image.id)
+        ? selectedImageIds
         : [...selectedImageIds, image.id];
     }
     

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Upload, Sparkles } from 'lucide-react';
+import { Upload, Sparkles, Download, Copy, Check } from 'lucide-react';
 import { useWorkbenchStore } from '../../store/workbenchStore';
 import ImageNode from './ImageNode';
 import SelectionBox from './SelectionBox';
@@ -10,6 +10,7 @@ import PromptViewer from './PromptViewer';
 import type { Position } from '../../types';
 import { screenToCanvas, calculateNewPanOffset, clampZoom } from '../../utils/coordinates';
 import { CANVAS_SIZE } from '../../constants/canvas';
+import { downloadSingleImage, downloadMultipleImages, copyImageToClipboard } from '../../utils/imageDownload';
 
 const Workbench: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -34,6 +35,7 @@ const Workbench: React.FC = () => {
     setSpacePressed,
     setContextMenuCanvasPosition,
     contextMenuCanvasPosition,
+    selectedImageIds,
   } = useWorkbenchStore();
 
   const [isSelecting, setIsSelecting] = useState(false);
@@ -47,6 +49,8 @@ const Workbench: React.FC = () => {
   const [panStart, setPanStart] = useState<Position>({ x: 0, y: 0 });
   const [initialPanOffset, setInitialPanOffset] = useState<Position>({ x: 0, y: 0 });
   const [lastMousePosition, setLastMousePosition] = useState<Position>({ x: 500, y: 500 });
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Center the canvas on mount
   useEffect(() => {
@@ -437,6 +441,49 @@ const Workbench: React.FC = () => {
     setContextMenu({ visible: false, x: 0, y: 0 });
   };
 
+  const handleDownloadImages = async () => {
+    setDownloading(true);
+    try {
+      const selectedImages = images.filter(img => selectedImageIds.includes(img.id));
+      if (selectedImages.length === 1) {
+        await downloadSingleImage(selectedImages[0]);
+      } else if (selectedImages.length > 1) {
+        await downloadMultipleImages(selectedImages);
+      }
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Failed to download image(s). Please try again.');
+    } finally {
+      setDownloading(false);
+      setContextMenu({ visible: false, x: 0, y: 0 });
+    }
+  };
+
+  const handleCopyImage = async () => {
+    try {
+      const selectedImages = images.filter(img => selectedImageIds.includes(img.id));
+      if (selectedImages.length === 1) {
+        await copyImageToClipboard(selectedImages[0]);
+        setCopied(true);
+        setTimeout(() => {
+          setCopied(false);
+          setContextMenu({ visible: false, x: 0, y: 0 });
+        }, 1500);
+      }
+    } catch (error) {
+      console.error('Copy failed:', error);
+      alert('Failed to copy image to clipboard. Please try again.');
+    }
+  };
+
+  const getDownloadLabel = () => {
+    const selectedImages = images.filter(img => selectedImageIds.includes(img.id));
+    if (selectedImages.length === 1) return 'Download Image';
+    if (selectedImages.length === 2) return 'Download Selected (2)';
+    if (selectedImages.length > 2) return `Download Selected as ZIP (${selectedImages.length})`;
+    return 'Download Image';
+  };
+
   // Close context menu on click or escape
   useEffect(() => {
     const handleClick = () => setContextMenu({ visible: false, x: 0, y: 0 });
@@ -538,13 +585,44 @@ const Workbench: React.FC = () => {
       </div>
 
       {contextMenu.visible && (
-        <div 
+        <div
           className="fixed z-50 bg-workbench-sidebar border border-workbench-border rounded-md shadow-lg py-1 min-w-[12rem]"
-          style={{ 
-            left: contextMenu.x, 
+          style={{
+            left: contextMenu.x,
             top: contextMenu.y,
           }}
         >
+          {selectedImageIds.length > 0 && (
+            <>
+              <button
+                onClick={handleDownloadImages}
+                disabled={downloading}
+                className="w-full text-left px-3 py-2 text-sm text-workbench-text hover:bg-workbench-hover flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" />
+                {downloading ? 'Downloading...' : getDownloadLabel()}
+              </button>
+              <button
+                onClick={handleCopyImage}
+                disabled={selectedImageIds.length !== 1 || copied}
+                className="w-full text-left px-3 py-2 text-sm text-workbench-text hover:bg-workbench-hover flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={selectedImageIds.length > 1 ? 'Can only copy one image at a time' : 'Copy image to clipboard'}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy Image
+                  </>
+                )}
+              </button>
+              <div className="h-px bg-workbench-border mx-1 my-1" />
+            </>
+          )}
           <button
             onClick={handleUploadImage}
             className="w-full text-left px-3 py-2 text-sm text-workbench-text hover:bg-workbench-hover flex items-center gap-2"
