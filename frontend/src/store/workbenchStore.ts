@@ -7,6 +7,7 @@ interface WorkbenchState {
   images: WorkbenchImage[];
   activeTool: Tool;
   selectedImageIds: string[];
+  lastSelectedImageId: string | null;
   isGenerating: boolean;
   showGenerateModal: boolean;
   isDragging: boolean;
@@ -60,6 +61,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   images: [],
   activeTool: 'select',
   selectedImageIds: [],
+  lastSelectedImageId: null,
   isGenerating: false,
   showGenerateModal: false,
   isDragging: false,
@@ -263,9 +265,10 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
       if (multiSelect) {
         const isSelected = state.selectedImageIds.includes(id);
         return {
-          selectedImageIds: isSelected 
+          selectedImageIds: isSelected
             ? state.selectedImageIds.filter(sid => sid !== id)
             : [...state.selectedImageIds, id],
+          lastSelectedImageId: id,
           images: state.images.map(img => ({
             ...img,
             selected: img.id === id ? !img.selected : img.selected
@@ -274,6 +277,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
       } else {
         return {
           selectedImageIds: [id],
+          lastSelectedImageId: id,
           images: state.images.map(img => ({
             ...img,
             selected: img.id === id
@@ -286,6 +290,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   selectImages: (ids) => {
     set((state) => ({
       selectedImageIds: ids,
+      lastSelectedImageId: ids.length > 0 ? ids[ids.length - 1] : null,
       images: state.images.map(img => ({
         ...img,
         selected: ids.includes(img.id)
@@ -296,6 +301,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   clearSelection: () => {
     set((state) => ({
       selectedImageIds: [],
+      lastSelectedImageId: null,
       images: state.images.map(img => ({ ...img, selected: false }))
     }));
   },
